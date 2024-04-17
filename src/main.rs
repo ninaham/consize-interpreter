@@ -1,27 +1,18 @@
 use std::{
     collections::VecDeque,
     fmt::Display,
-    io::{self, stdout, Error, Write},
+    io::{self, Error},
 };
 
 use colored::Colorize;
+use rustyline::Editor;
 
 fn main() {
     let mut stack: Vec<StackElement> = Vec::new();
+    let mut rl = Editor::<()>::new();
     println!("{}", "Welcome to Consize\n".yellow().bold());
-    let stdin = io::stdin();
-    loop {
-        print!("{}", "=> ".bright_cyan());
-        stdout().flush().unwrap_or_else(|_| {
-            panic!("{} an error occured flushing stdout", "Error:".red().bold())
-        });
-        let mut inp = String::new();
-        stdin.read_line(&mut inp).unwrap_or_else(|_| {
-            panic!(
-                "{} something went wrong reading from stdin",
-                "Error: ".red().bold()
-            )
-        });
+    while let Ok(inp) = rl.readline("=> ".bright_cyan().to_string().as_str()) {
+        rl.add_history_entry(inp.clone());
 
         let mut input = inp
             .split_whitespace()
@@ -39,18 +30,18 @@ fn main() {
 #[derive(Clone, Debug)]
 enum StackElement {
     Integer(usize),
-    Keyword(String),
     SubStack(Vec<StackElement>),
     Word(String),
+    Keyword(String),
 }
 
 impl Display for StackElement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            StackElement::Integer(i) => write!(f, "{} ", i),
-            StackElement::Keyword(s) => write!(f, "{} ", s),
             StackElement::SubStack(st) => write!(f, "{} ", print_stack(st, true)),
             StackElement::Word(s) => write!(f, "{} ", s),
+            StackElement::Keyword(s) => write!(f, "{} ", s),
+            StackElement::Integer(i) => write!(f, "{} ", i),
         }
     }
 }
@@ -58,7 +49,7 @@ impl Display for StackElement {
 fn print_stack(stack: &Vec<StackElement>, print_brackets: bool) -> String {
     let mut str = "".to_string();
     if print_brackets {
-        str.push('[');
+        str.push_str("[ ");
     }
     for i in stack {
         str.push_str(format!("{}", *i).as_str())
@@ -77,14 +68,6 @@ fn parse(input: &mut VecDeque<String>) -> Vec<StackElement> {
         if let Ok(n) = ins.parse::<usize>() {
             stack.push(StackElement::Integer(n));
             continue;
-        }
-        if ins == "[ " {
-            let s = parse(input);
-            stack.push(StackElement::SubStack(s));
-            continue;
-        }
-        if ins == "]" {
-            return stack;
         }
         stack.push(StackElement::Keyword(ins))
     }
@@ -167,7 +150,7 @@ fn call(stack: &mut Vec<StackElement>, input: &StackElement) -> Result<(), std::
                     )),
                 }
             }
-            "/" => {
+            "div" => {
                 if stack.len() < 2 {
                     return Err(Error::new(
                         io::ErrorKind::InvalidInput,
@@ -257,6 +240,99 @@ fn call(stack: &mut Vec<StackElement>, input: &StackElement) -> Result<(), std::
 
                 Ok(())
             }
+            "emptystack" => {
+                stack.push(StackElement::SubStack(Vec::new()));
+                Ok(())
+            }
+            "push" => {
+                let e = stack.pop().unwrap();
+                let substack = stack.pop().unwrap();
+
+                match substack {
+                    StackElement::SubStack(ss) => {
+                        let mut new_substack = ss.clone();
+                        new_substack.push(e);
+                        stack.push(StackElement::SubStack(new_substack));
+                        Ok(())
+                    }
+                    _ => Err(Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("{} I can only push to stacks", "Error:".red().bold()),
+                    )),
+                }
+            }
+            "type" => {
+                match stack.pop().unwrap() {
+                    StackElement::Integer(_) => stack.push(StackElement::Word("wrd".to_string())),
+                    StackElement::SubStack(_) => stack.push(StackElement::Word("stk".to_string())),
+                    StackElement::Word(_) => stack.push(StackElement::Word("wrd".to_string())),
+                    StackElement::Keyword(_) => stack.push(StackElement::Word("fct".to_string())),
+                };
+
+                Ok(())
+            }
+            "pop" => {
+                let substack = stack.pop().unwrap();
+                match substack {
+                    StackElement::SubStack(ss) => {
+                        let mut new_ss = ss.clone();
+                        new_ss.pop().unwrap();
+                        stack.push(StackElement::SubStack(new_ss));
+                        Ok(())
+                    }
+                    _ => Err(Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("{} I can only pop from stacks", "Error:".red().bold()),
+                    )),
+                }
+            }
+            "top" => {
+                let substack = stack.pop().unwrap();
+                match substack {
+                    StackElement::SubStack(ss) => {
+                        let mut new_ss = ss.clone();
+                        let el = new_ss.pop().unwrap();
+                        stack.push(el);
+                        Ok(())
+                    }
+                    _ => Err(Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("{} I can only pop from stacks", "Error:".red().bold()),
+                    )),
+                }
+            }
+            "concat" => {
+                if let StackElement::SubStack(mut ss1) = stack.pop().unwrap() {
+                    if let StackElement::SubStack(mut ss2) = stack.pop().unwrap() {
+                        ss2.append(&mut ss1);
+                        stack.push(StackElement::SubStack(ss2))
+                    } else {
+                        return Err(Error::new(
+                            io::ErrorKind::InvalidInput,
+                            format!("{} I can only concat stacks", "Error:".red().bold()),
+                        ));
+                    }
+                } else {
+                    return Err(Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("{} I can only concat stacks", "Error:".red().bold()),
+                    ));
+                }
+
+                Ok(())
+            }
+            "reverse" => {
+                if let StackElement::SubStack(mut ss) = stack.pop().unwrap() {
+                    ss.reverse();
+                    stack.push(StackElement::SubStack(ss))
+                } else {
+                    return Err(Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("{} I can only reverse stacks", "Error:".red().bold()),
+                    ));
+                }
+                Ok(())
+            }
             s => {
                 stack.push(StackElement::Word(s.to_string()));
                 Ok(())
@@ -270,8 +346,8 @@ fn call(stack: &mut Vec<StackElement>, input: &StackElement) -> Result<(), std::
             stack.push(StackElement::SubStack(s.clone()));
             Ok(())
         }
-        StackElement::Word(s) => {
-            stack.push(StackElement::Word(s.clone()));
+        StackElement::Word(n) => {
+            stack.push(StackElement::Word(n.to_string()));
             Ok(())
         }
     }
