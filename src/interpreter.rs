@@ -31,8 +31,8 @@ impl Interpreter {
         dict.insert("drop".to_string(), Box::new(Self::drop));
         dict.insert("rot".to_string(), Box::new(Self::rot));
         dict.insert("type".to_string(), Box::new(Self::r#type));
-        dict.insert("equal?".to_string(), Box::new(Self::equal));
-        dict.insert("identical?".to_string(), Box::new(Self::identical));
+        dict.insert("equal?".to_string(), Box::new(Self::equal)); //TODO
+        dict.insert("identical?".to_string(), Box::new(Self::identical)); //TODO
         dict.insert("emptystack".to_string(), Box::new(Self::emptystack));
         dict.insert("push".to_string(), Box::new(Self::push));
         dict.insert("top".to_string(), Box::new(Self::top));
@@ -48,42 +48,42 @@ impl Interpreter {
         dict.insert("merge".to_string(), Box::new(Self::merge));
         dict.insert("word".to_string(), Box::new(Self::word));
         dict.insert("unword".to_string(), Box::new(Self::unword));
-        dict.insert("char".to_string(), Box::new(Self::char));
+        dict.insert("char".to_string(), Box::new(Self::char)); //TODO
         dict.insert("print".to_string(), Box::new(Self::print));
         dict.insert("flush".to_string(), Box::new(Self::flush));
         dict.insert("read-line".to_string(), Box::new(Self::read_line));
-        dict.insert("slurp".to_string(), Box::new(Self::slurp));
-        dict.insert("spit".to_string(), Box::new(Self::spit));
-        dict.insert("spit-on".to_string(), Box::new(Self::spit_on));
-        dict.insert("uncomment".to_string(), Box::new(Self::uncomment));
-        dict.insert("tokenize".to_string(), Box::new(Self::tokenize));
-        dict.insert("undocument".to_string(), Box::new(Self::undocument));
-        dict.insert("current-time-millis".to_string(), Box::new(Self::current_time_millis));
-        dict.insert("operating-system".to_string(), Box::new(Self::operating_system));
-        dict.insert("call".to_string(), Box::new(Self::call));
-        dict.insert("call/cc".to_string(), Box::new(Self::call_cc));
-        dict.insert("continue".to_string(), Box::new(Self::r#continue));
-        dict.insert("get-dict".to_string(), Box::new(Self::get_dict));
-        dict.insert("set-dict".to_string(), Box::new(Self::set_dict));
-        dict.insert("stepcc".to_string(), Box::new(Self::stepcc));
-        dict.insert("apply".to_string(), Box::new(Self::apply));
-        dict.insert("compose".to_string(), Box::new(Self::compose));
-        dict.insert("func".to_string(), Box::new(Self::func));
-        dict.insert("integer?".to_string(), Box::new(Self::integer));
+        dict.insert("slurp".to_string(), Box::new(Self::slurp)); //TODO
+        dict.insert("spit".to_string(), Box::new(Self::spit)); //TODO
+        dict.insert("spit-on".to_string(), Box::new(Self::spit_on)); //TODO
+        dict.insert("uncomment".to_string(), Box::new(Self::uncomment)); //TODO
+        dict.insert("tokenize".to_string(), Box::new(Self::tokenize)); //TODO
+        dict.insert("undocument".to_string(), Box::new(Self::undocument)); //TODO
+        dict.insert("current-time-millis".to_string(), Box::new(Self::current_time_millis)); //TODO
+        dict.insert("operating-system".to_string(), Box::new(Self::operating_system)); //TODO
+        dict.insert("call".to_string(), Box::new(Self::call)); //TODO
+        dict.insert("call/cc".to_string(), Box::new(Self::call_cc)); //TODO
+        dict.insert("continue".to_string(), Box::new(Self::r#continue)); //TODO
+        dict.insert("get-dict".to_string(), Box::new(Self::get_dict)); //TODO
+        dict.insert("set-dict".to_string(), Box::new(Self::set_dict)); //TODO
+        dict.insert("stepcc".to_string(), Box::new(Self::stepcc)); //TODO
+        dict.insert("apply".to_string(), Box::new(Self::apply)); //TODO
+        dict.insert("compose".to_string(), Box::new(Self::compose)); //TODO
+        dict.insert("func".to_string(), Box::new(Self::func)); //TODO
+        dict.insert("integer?".to_string(), Box::new(Self::integer)); //TODO
         dict.insert("+".to_string(), Box::new(Self::addition));
         dict.insert("-".to_string(), Box::new(Self::subtraction));
         dict.insert("*".to_string(), Box::new(Self::multiplication));
         dict.insert("div".to_string(), Box::new(Self::division));
-        dict.insert("mod".to_string(), Box::new(Self::modulo));
-        dict.insert("<".to_string(), Box::new(Self::less_than));
-        dict.insert(">".to_string(), Box::new(Self::greater_than));
-        dict.insert("==".to_string(), Box::new(Self::equals));
-        dict.insert("<=".to_string(), Box::new(Self::less_equals));
-        dict.insert(">=".to_string(), Box::new(Self::greater_equals));
-        dict.insert("\\".to_string(), Box::new(Self::comment));
-        dict.insert("load".to_string(), Box::new(Self::load));
-        dict.insert("run".to_string(), Box::new(Self::run));
-        dict.insert("start".to_string(), Box::new(Self::start));
+        dict.insert("mod".to_string(), Box::new(Self::modulo)); //TODO
+        dict.insert("<".to_string(), Box::new(Self::less_than)); //TODO
+        dict.insert(">".to_string(), Box::new(Self::greater_than)); //TODO
+        dict.insert("==".to_string(), Box::new(Self::equals)); //TODO
+        dict.insert("<=".to_string(), Box::new(Self::less_equals)); //TODO
+        dict.insert(">=".to_string(), Box::new(Self::greater_equals)); //TODO
+        dict.insert("\\".to_string(), Box::new(Self::comment)); //TODO
+        dict.insert("load".to_string(), Box::new(Self::load)); //TODO
+        dict.insert("run".to_string(), Box::new(Self::run)); //TODO
+        dict.insert("start".to_string(), Box::new(Self::start)); //TODO
 
 
         dict
