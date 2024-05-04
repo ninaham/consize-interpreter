@@ -4,8 +4,8 @@ use std::{collections::BTreeMap, fmt::Display};
 pub enum StackElement {
     SubStack(Vec<StackElement>),
     Word(String),
-    Keyword(String),
     Map(BTreeMap<StackElement, StackElement>),
+    Nil,
 }
 
 impl Display for StackElement {
@@ -13,8 +13,8 @@ impl Display for StackElement {
         match self {
             StackElement::SubStack(st) => write!(f, "{} ", print_stack(st, true, true)),
             StackElement::Word(s) => write!(f, "{} ", s),
-            StackElement::Keyword(s) => write!(f, "{} ", s),
             StackElement::Map(m) => write!(f, "{} ", print_map(m)),
+            StackElement::Nil => write!(f, "nil"),
         }
     }
 }
