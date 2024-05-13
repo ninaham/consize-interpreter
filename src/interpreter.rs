@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeMap,
-    default, env,
+    env,
     fs::{self, OpenOptions},
     io::{self, stdin, stdout, Error, Write},
     ops::Deref,
@@ -10,7 +10,7 @@ use std::{
 
 use colored::Colorize;
 
-use crate::stack_element::{map_to_dict, print_stack, Funct, StackElement};
+use crate::stack_element::{map_to_dict, Funct, StackElement};
 
 pub struct Interpreter {
     pub datastack: Vec<StackElement>,
@@ -1024,7 +1024,7 @@ impl Interpreter {
         ))? {
             datastack.push(StackElement::Word(
                 wrd.lines()
-                    .map(|l| l.split(" %").next().unwrap())
+                    .map(|l| l.split('%').next().unwrap())
                     .collect::<String>(),
             ));
 
@@ -1132,7 +1132,10 @@ impl Interpreter {
             format!("{} not enough operands", "Error:".red().bold()),
         ))?;
         callstack.clear();
-        callstack.push(top);
+        match top.clone() {
+            StackElement::SubStack(mut ss) => callstack.append(&mut ss),
+            el => callstack.push(el),
+        }
 
         datastack = [
             StackElement::SubStack(datastack.clone()),
@@ -1226,6 +1229,8 @@ impl Interpreter {
         ))?;
 
         count += 1;
+
+        //println!("{}; {}", count, e);
 
         match e {
             StackElement::SubStack(ss) => datastack.push(StackElement::SubStack(ss)),
