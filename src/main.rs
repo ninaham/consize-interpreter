@@ -20,7 +20,7 @@ fn main() {
         count: 0,
     };
 
-    match call(&int) {
+    match call(int) {
         Ok(new_int) => println!(
             "{} {}",
             "Consize returns:".yellow().bold(),
@@ -30,6 +30,6 @@ fn main() {
     }
 }
 
-fn call(int: &Interpreter) -> Result<Interpreter, Error> {
+fn call(int: Interpreter) -> Result<Interpreter, Error> {
     int.uncomment()?.tokenize()?.get_dict()?.func()
 }

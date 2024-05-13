@@ -4,7 +4,7 @@ use colored::Colorize;
 
 use crate::interpreter::Interpreter;
 
-type BuiltIn = Rc<dyn Fn(&Interpreter) -> Result<Interpreter, Error>>;
+type BuiltIn = Rc<dyn Fn(Interpreter) -> Result<Interpreter, Error>>;
 
 #[derive(Clone)]
 pub enum StackElement {
