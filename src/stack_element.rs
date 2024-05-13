@@ -1,45 +1,116 @@
-use std::{collections::BTreeMap, fmt::Display};
+use std::{collections::BTreeMap, fmt::Display, io::Error, ops::Deref, rc::Rc};
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
+use colored::Colorize;
+
+use crate::interpreter::Interpreter;
+
+type BuiltIn = Rc<dyn Fn(&Interpreter) -> Result<Interpreter, Error>>;
+
+#[derive(Clone)]
 pub enum StackElement {
     SubStack(Vec<StackElement>),
     Word(String),
-    Map(BTreeMap<StackElement, StackElement>),
+    Map(Vec<(StackElement, StackElement)>),
+    Fun(Rc<Funct>),
     Nil,
+}
+
+pub enum Funct {
+    BuiltIn(BuiltIn),
+    SelfDefined(StackElement),
 }
 
 impl Display for StackElement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            StackElement::SubStack(st) => write!(f, "{} ", print_stack(st, true, true)),
-            StackElement::Word(s) => write!(f, "{} ", s),
-            StackElement::Map(m) => write!(f, "{} ", print_map(m)),
-            StackElement::Nil => write!(f, "nil"),
+            Self::SubStack(st) => write!(f, "{}", print_stack(st, true, true)),
+            Self::Word(s) => write!(f, "{s}"),
+            Self::Map(m) => write!(f, "{}", print_map(m)),
+            Self::Nil => write!(f, "nil"),
+            Self::Fun(_) => write!(f, "<fct>"),
         }
     }
 }
 
-fn print_map(map: &BTreeMap<StackElement, StackElement>) -> String {
-    let mut str = "".to_string();
+pub fn print_map(map: &Vec<(StackElement, StackElement)>) -> String {
+    let mut str = String::new();
     str.push_str("{ ");
     for i in map {
-        str.push_str(format!("{}{}", *i.0, *i.1).as_str())
+        str.push_str(format!("{} {} ", i.0, i.1).as_str());
     }
     str.push('}');
 
     str
 }
 
+impl PartialEq for StackElement {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Self::SubStack(s) => match other {
+                Self::SubStack(sk) => print_stack(s, true, false) == print_stack(sk, true, false),
+                _ => false,
+            },
+            Self::Word(w) => match other {
+                Self::Word(wk) => w == wk,
+                _ => false,
+            },
+            Self::Map(m) => match other {
+                Self::Map(mk) => print_map(m) == print_map(mk),
+                _ => false,
+            },
+            Self::Fun(f) => match other {
+                Self::Fun(fk) => match f.deref() {
+                    Funct::BuiltIn(_bi) => match fk.deref() {
+                        Funct::BuiltIn(_bik) => todo!(),
+                        Funct::SelfDefined(_) => false,
+                    },
+                    Funct::SelfDefined(sd) => match fk.deref() {
+                        Funct::BuiltIn(_) => false,
+                        Funct::SelfDefined(sdk) => sd == sdk,
+                    },
+                },
+                _ => false,
+            },
+            Self::Nil => matches!(self, Self::Nil),
+        }
+    }
+}
+
+pub fn map_to_dict(
+    map: &Vec<(StackElement, StackElement)>,
+) -> Result<BTreeMap<String, Rc<Funct>>, Error> {
+    let mut dict = BTreeMap::new();
+    for tuple in map {
+        if let StackElement::Word(w) = tuple.0.clone() {
+            match tuple.1.clone() {
+                StackElement::Fun(f) => {
+                    dict.insert(w, f);
+                }
+                other => {
+                    dict.insert(w, Rc::new(Funct::SelfDefined(other)));
+                }
+            }
+        } else {
+            return Err(Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("{} need word as key for dict entry", "Error:".red().bold()),
+            ));
+        }
+    }
+
+    Ok(dict)
+}
+
 pub fn print_stack(stack: &Vec<StackElement>, print_brackets: bool, reverse: bool) -> String {
-    let mut str = "".to_string();
+    let mut str = String::new();
     if print_brackets && !reverse {
         str.push_str("[ ");
     }
     for i in stack {
         if reverse {
-            str = i.to_string() + str.as_str();
+            str = i.to_string() + " " + str.as_str();
         } else {
-            str.push_str(format!("{}", *i).as_str())
+            str.push_str(format!("{} ", *i).as_str());
         }
     }
     if reverse {
