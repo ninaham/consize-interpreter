@@ -1,10 +1,11 @@
+#![allow(clippy::match_like_matches_macro)]
 use std::{collections::BTreeMap, fmt::Display, io::Error, ops::Deref, rc::Rc};
 
 use colored::Colorize;
 
 use crate::interpreter::Interpreter;
 
-type BuiltIn = Rc<dyn Fn(Interpreter) -> Result<Interpreter, Error>>;
+pub type BuiltIn = Rc<dyn Fn(Interpreter) -> Result<Interpreter, Error>>;
 
 #[derive(Clone)]
 pub enum StackElement {
@@ -36,7 +37,7 @@ pub fn print_map(map: &Vec<(StackElement, StackElement)>) -> String {
     let mut str = String::new();
     str.push_str("{ ");
     for i in map {
-        str.push_str(format!("{} {} ", i.0, i.1).as_str());
+        str.push_str(format!("{}, {} ", i.0, i.1).as_str());
     }
     str.push('}');
 
@@ -71,7 +72,10 @@ impl PartialEq for StackElement {
                 },
                 _ => false,
             },
-            Self::Nil => matches!(self, Self::Nil),
+            Self::Nil => match other {
+                StackElement::Nil => true,
+                _ => false,
+            },
         }
     }
 }
@@ -108,9 +112,14 @@ pub fn print_stack(stack: &Vec<StackElement>, print_brackets: bool, reverse: boo
     }
     for i in stack {
         if reverse {
-            str = i.to_string() + " " + str.as_str();
+            str = i.to_string().escape_default().collect::<String>() + " " + str.as_str();
         } else {
-            str.push_str(format!("{} ", *i).as_str());
+            str.push_str(
+                format!("{} ", *i)
+                    .escape_default()
+                    .collect::<String>()
+                    .as_str(),
+            );
         }
     }
     if reverse {

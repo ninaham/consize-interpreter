@@ -1,4 +1,7 @@
-use std::{env, io::Error};
+use std::{
+    env,
+    io::{stdout, Error, Write},
+};
 
 use colored::Colorize;
 use interpreter::Interpreter;
@@ -13,6 +16,7 @@ fn main() {
     let args = env::args();
     let int = Interpreter {
         datastack: vec![StackElement::Word(
+            //"\\ prelude.txt run say-hi".to_string(),
             args.skip(1).collect::<Vec<String>>().join(" "),
         )],
         callstack: Vec::new(),
@@ -26,10 +30,16 @@ fn main() {
             "Consize returns:".yellow().bold(),
             print_stack(&new_int.datastack, false, false)
         ),
-        Err(e) => println!("{}", e),
+        Err(e) => {
+            stdout().flush().unwrap();
+            eprintln!("{}", e)
+        }
     }
 }
 
 fn call(int: Interpreter) -> Result<Interpreter, Error> {
-    int.uncomment()?.tokenize()?.get_dict()?.func()
+    let mut int1 = int.uncomment()?.tokenize()?.get_dict()?.func()?;
+
+    int1.datastack.push(StackElement::SubStack(vec![]));
+    int1.swap()?.apply()
 }

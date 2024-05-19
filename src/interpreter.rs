@@ -10,8 +10,9 @@ use std::{
 
 use colored::Colorize;
 
-use crate::stack_element::{map_to_dict, Funct, StackElement};
+use crate::stack_element::{map_to_dict, print_stack, Funct, StackElement};
 
+#[derive(Clone)]
 pub struct Interpreter {
     pub datastack: Vec<StackElement>,
     pub callstack: Vec<StackElement>,
@@ -513,12 +514,12 @@ impl Interpreter {
     }
 
     pub fn reverse(mut self) -> Result<Self, Error> {
-        if let StackElement::SubStack(mut ss) = self.datastack.pop().ok_or(Error::new(
+        if let StackElement::SubStack(ss) = self.datastack.pop().ok_or(Error::new(
             io::ErrorKind::InvalidData,
             format!("{} not enough operands", "Error:".red().bold()),
         ))? {
-            ss.reverse();
-            self.datastack.push(StackElement::SubStack(ss))
+            let ss_rev = ss.iter().rev().cloned().collect();
+            self.datastack.push(StackElement::SubStack(ss_rev))
         } else {
             return Err(Error::new(
                 io::ErrorKind::InvalidInput,
@@ -589,8 +590,8 @@ impl Interpreter {
             let values: Vec<StackElement> = map.iter().map(|(_, i)| i).cloned().collect();
             let mut st = Vec::new();
             for i in 0..keys.len() {
-                st.push(keys[i].clone());
                 st.push(values[i].clone());
+                st.push(keys[i].clone());
             }
 
             self.datastack.push(StackElement::SubStack(st));
@@ -676,7 +677,7 @@ impl Interpreter {
                 io::ErrorKind::InvalidData,
                 format!("{} not enough operands", "Error:".red().bold()),
             ))?;
-            map.retain(|(i, _)| *i == key);
+            map.retain(|(i, _)| *i != key);
 
             self.datastack.push(StackElement::Map(map));
 
@@ -713,7 +714,13 @@ impl Interpreter {
 
             self.datastack
                 .push(match m.iter().find(|(i, _)| *i == key) {
-                    Some((_, j)) => j.clone(),
+                    Some((_, j)) => match j {
+                        StackElement::Fun(func) => match func.deref() {
+                            Funct::BuiltIn(_) => j.clone(),
+                            Funct::SelfDefined(st) => st.clone(),
+                        },
+                        _ => j.clone(),
+                    },
                     None => default,
                 });
 
@@ -807,6 +814,7 @@ impl Interpreter {
             self.datastack.push(StackElement::SubStack(
                 str.chars()
                     .map(|c| StackElement::Word(c.to_string()))
+                    .rev()
                     .collect(),
             ));
 
@@ -998,7 +1006,9 @@ impl Interpreter {
             self.datastack.push(StackElement::Word(
                 wrd.lines()
                     .map(|l| l.split('%').next().unwrap())
-                    .collect::<String>(),
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>()
+                    .join(" "),
             ));
 
             return Ok(Self {
@@ -1192,6 +1202,11 @@ impl Interpreter {
 
         count += 1;
 
+        /*if count > 15231 {
+            println!("{count}: {e}");
+            println!("datastack: {}", print_stack(&self.datastack, true, true));
+            println!("callstack: {}", print_stack(&self.callstack, true, true));
+        }*/
         match e {
             StackElement::SubStack(ss) => self.datastack.push(StackElement::SubStack(ss)),
             StackElement::Word(w) => {
@@ -1250,45 +1265,36 @@ impl Interpreter {
     }
 
     pub fn apply(mut self) -> Result<Self, Error> {
-        if let StackElement::SubStack(stk) = self.datastack.pop().ok_or(Error::new(
+        if let StackElement::Fun(fun) = self.datastack.pop().ok_or(Error::new(
             io::ErrorKind::InvalidData,
-            format!("{} apply: not enough operands", "Error:".red().bold()),
+            format!("{} not enough operands", "Error:".red().bold()),
         ))? {
-            if let StackElement::Word(wrd) = self.datastack.pop().ok_or(Error::new(
+            if let StackElement::SubStack(stack) = self.datastack.pop().ok_or(Error::new(
                 io::ErrorKind::InvalidData,
-                format!("{} apply: not enough operands", "Error:".red().bold()),
+                format!("{} not enough operands", "Error:".red().bold()),
             ))? {
-                if let Some(fct) = self.dictionary.get(wrd.as_str()) {
-                    let mut inner = Self {
-                        datastack: stk,
-                        callstack: Vec::new(),
-                        dictionary: self.dictionary.clone(),
-                        count: self.count,
-                    };
-                    let next = match fct.deref() {
-                        Funct::BuiltIn(fun) => fun(inner),
-                        Funct::SelfDefined(st) => {
-                            inner.callstack.push(st.clone());
-                            inner.stepcc()
+                self.datastack
+                    .push(StackElement::SubStack(match fun.deref() {
+                        Funct::BuiltIn(bi) => {
+                            bi(Interpreter {
+                                datastack: stack,
+                                callstack: self.callstack.clone(),
+                                dictionary: self.dictionary.clone(),
+                                count: self.count,
+                            })?
+                            .datastack
                         }
-                    }?;
-
-                    self.datastack.push(StackElement::SubStack(next.datastack));
-
-                    return Ok(Self {
-                        datastack: self.datastack,
-                        callstack: self.callstack,
-                        dictionary: self.dictionary,
-                        count: self.count,
-                    });
-                }
+                        Funct::SelfDefined(_) => todo!(),
+                    }))
             }
         }
 
-        Err(Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("{} need stack and word for apply", "Error:".red().bold()),
-        ))
+        Ok(Interpreter {
+            datastack: self.datastack,
+            callstack: self.callstack,
+            dictionary: self.dictionary,
+            count: self.count,
+        })
     }
 
     pub fn compose(self) -> Result<Self, Error> {
@@ -1296,6 +1302,8 @@ impl Interpreter {
     }
 
     pub fn func(mut self) -> Result<Self, Error> {
+        let callstack = self.callstack.clone();
+        let dictionary = self.dictionary.clone();
         if let StackElement::Map(dict) = self.datastack.pop().ok_or(Error::new(
             io::ErrorKind::InvalidData,
             format!("{} not enough operands", "Error:".red().bold()),
@@ -1312,21 +1320,31 @@ impl Interpreter {
                         }
                     }
                 }
-                let mut ds_dash = runcc(Self {
-                    datastack: Vec::new(),
-                    callstack: qt,
-                    dictionary: dict,
-                    count: self.count,
-                })?;
 
-                self.datastack.append(&mut ds_dash);
+                let f = move |interpreter: Interpreter| {
+                    let qt = qt.clone().to_owned();
+                    Ok(Interpreter {
+                        datastack: runcc(Interpreter {
+                            datastack: interpreter.datastack,
+                            callstack: qt,
+                            dictionary: dict.clone(),
+                            count: self.count,
+                        })?,
+                        callstack: Vec::new(),
+                        dictionary: BTreeMap::new(),
+                        count: self.count,
+                    })
+                };
+
+                self.datastack
+                    .push(StackElement::Fun(Rc::new(Funct::BuiltIn(Rc::new(f)))));
             }
         }
 
         Ok(Self {
             datastack: self.datastack,
-            callstack: self.callstack,
-            dictionary: self.dictionary,
+            callstack,
+            dictionary,
             count: self.count,
         })
     }
@@ -1401,54 +1419,52 @@ impl Interpreter {
                 io::ErrorKind::InvalidData,
                 format!("{} not enough operands", "Error:".red().bold()),
             ))? {
-                if w1.parse::<usize>().is_ok() && w2.parse::<usize>().is_ok() {
-                    let x: usize = w1.parse().map_err(|_| {
-                        Error::new(
-                            io::ErrorKind::InvalidData,
-                            format!("{} not enough operands", "Error:".red().bold()),
-                        )
-                    })?;
-                    let y: usize = w2.parse().map_err(|_| {
-                        Error::new(
-                            io::ErrorKind::InvalidData,
-                            format!("{} not enough operands", "Error:".red().bold()),
-                        )
-                    })?;
-                    self.datastack.push(StackElement::Word(match op {
-                        "+" => (x + y).to_string(),
-                        "-" => (x - y).to_string(),
-                        "*" => (x * y).to_string(),
-                        "div" => (x / y).to_string(),
-                        "mod" => (x % y).to_string(),
-                        ">=" => match x >= y {
-                            true => "t".to_string(),
-                            false => "f".to_string(),
-                        },
-                        "==" => match x == y {
-                            true => "t".to_string(),
-                            false => "f".to_string(),
-                        },
-                        "<" => match x < y {
-                            true => "t".to_string(),
-                            false => "f".to_string(),
-                        },
-                        ">" => match x > y {
-                            true => "t".to_string(),
-                            false => "f".to_string(),
-                        },
-                        "<=" => match x <= y {
-                            true => "t".to_string(),
-                            false => "f".to_string(),
-                        },
-                        _ => panic!("unknown operator"),
-                    }));
-                    return Ok(Self {
-                        datastack: self.datastack,
-                        callstack: self.callstack,
-                        dictionary: self.dictionary,
-                        count: self.count,
-                    });
-                }
+                let x: isize = w1.parse().map_err(|_| {
+                    Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("{} {} is not an integer", "Error:".red().bold(), w1,),
+                    )
+                })?;
+                let y: isize = w2.parse().map_err(|_| {
+                    Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("{} {} is not an integer", "Error:".red().bold(), w2),
+                    )
+                })?;
+                self.datastack.push(StackElement::Word(match op {
+                    "+" => (x + y).to_string(),
+                    "-" => (y - x).to_string(),
+                    "*" => (x * y).to_string(),
+                    "div" => (y / x).to_string(),
+                    "mod" => (y % x).to_string(),
+                    ">=" => match y >= x {
+                        true => "t".to_string(),
+                        false => "f".to_string(),
+                    },
+                    "==" => match y == x {
+                        true => "t".to_string(),
+                        false => "f".to_string(),
+                    },
+                    "<" => match y < x {
+                        true => "t".to_string(),
+                        false => "f".to_string(),
+                    },
+                    ">" => match y > x {
+                        true => "t".to_string(),
+                        false => "f".to_string(),
+                    },
+                    "<=" => match y <= x {
+                        true => "t".to_string(),
+                        false => "f".to_string(),
+                    },
+                    _ => panic!("unknown operator"),
+                }));
+                return Ok(Self {
+                    datastack: self.datastack,
+                    callstack: self.callstack,
+                    dictionary: self.dictionary,
+                    count: self.count,
+                });
             }
         }
         Err(Error::new(
