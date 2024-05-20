@@ -5,7 +5,7 @@ use colored::Colorize;
 
 use crate::interpreter::Interpreter;
 
-pub type BuiltIn = Rc<dyn Fn(Interpreter) -> Result<Interpreter, Error>>;
+pub type BuiltIn = Rc<dyn Fn(Interpreter) -> Result<Box<Interpreter>, Error>>;
 
 #[derive(Clone)]
 pub enum StackElement {
@@ -18,7 +18,7 @@ pub enum StackElement {
 
 pub enum Funct {
     BuiltIn(BuiltIn),
-    SelfDefined(StackElement),
+    SelfDefined(Box<StackElement>),
 }
 
 impl Display for StackElement {
@@ -91,7 +91,7 @@ pub fn map_to_dict(
                     dict.insert(w, f);
                 }
                 other => {
-                    dict.insert(w, Rc::new(Funct::SelfDefined(other)));
+                    dict.insert(w, Rc::new(Funct::SelfDefined(Box::new(other))));
                 }
             }
         } else {
