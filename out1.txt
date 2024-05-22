@@ -1,2 +1,0 @@
-This is Consize -- A Concatenative Programming Language
-> 

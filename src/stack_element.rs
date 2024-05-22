@@ -1,11 +1,9 @@
 #![allow(clippy::match_like_matches_macro)]
 use std::{collections::BTreeMap, fmt::Display, io::Error, ops::Deref, rc::Rc};
 
-use colored::Colorize;
-
 use crate::interpreter::Interpreter;
 
-pub type BuiltIn = Rc<dyn Fn(Interpreter) -> Result<Box<Interpreter>, Error>>;
+pub type BuiltIn = Rc<dyn Fn(Interpreter) -> Result<Interpreter, Error>>;
 
 #[derive(Clone)]
 pub enum StackElement {
@@ -18,7 +16,7 @@ pub enum StackElement {
 
 pub enum Funct {
     BuiltIn(BuiltIn),
-    SelfDefined(Box<StackElement>),
+    SelfDefined(StackElement),
 }
 
 impl Display for StackElement {
@@ -62,7 +60,7 @@ impl PartialEq for StackElement {
             Self::Fun(f) => match other {
                 Self::Fun(fk) => match f.deref() {
                     Funct::BuiltIn(_bi) => match fk.deref() {
-                        Funct::BuiltIn(_bik) => todo!(),
+                        Funct::BuiltIn(_bik) => unimplemented!(),
                         Funct::SelfDefined(_) => false,
                     },
                     Funct::SelfDefined(sd) => match fk.deref() {
@@ -85,20 +83,17 @@ pub fn map_to_dict(
 ) -> Result<BTreeMap<String, Rc<Funct>>, Error> {
     let mut dict = BTreeMap::new();
     for tuple in map {
-        if let StackElement::Word(w) = tuple.0.clone() {
-            match tuple.1.clone() {
+        if let StackElement::Word(w) = tuple.0.to_owned() {
+            match tuple.1.to_owned() {
                 StackElement::Fun(f) => {
                     dict.insert(w, f);
                 }
                 other => {
-                    dict.insert(w, Rc::new(Funct::SelfDefined(Box::new(other))));
+                    dict.insert(w, Rc::new(Funct::SelfDefined(other)));
                 }
             }
         } else {
-            return Err(Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("{} need word as key for dict entry", "Error:".red().bold()),
-            ));
+            return Err(Interpreter::error("need word as key for dict entry"));
         }
     }
 
@@ -114,12 +109,7 @@ pub fn print_stack(stack: &Vec<StackElement>, print_brackets: bool, reverse: boo
         if reverse {
             str = i.to_string().escape_default().collect::<String>() + " " + str.as_str();
         } else {
-            str.push_str(
-                format!("{} ", *i)
-                    .escape_default()
-                    .collect::<String>()
-                    .as_str(),
-            );
+            str.push_str(format!("{} ", *i).as_str());
         }
     }
     if reverse {
