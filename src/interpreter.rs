@@ -16,14 +16,14 @@ use crate::stack_element::{map_to_dict, BuiltIn, Funct, StackElement};
 pub struct Interpreter {
     pub datastack: Vec<StackElement>,
     pub callstack: Vec<StackElement>,
-    pub dictionary: BTreeMap<String, Rc<Funct>>,
+    pub dictionary: Rc<BTreeMap<String, Rc<Funct>>>,
 }
 
 impl Interpreter {
     pub fn new(
         datastack: Vec<StackElement>,
         callstack: Vec<StackElement>,
-        dictionary: BTreeMap<String, Rc<Funct>>,
+        dictionary: Rc<BTreeMap<String, Rc<Funct>>>,
     ) -> Self {
         Self {
             datastack,
@@ -639,9 +639,9 @@ impl Interpreter {
 
     pub fn get_dict(mut self) -> Result<Self, Error> {
         let mut map = Vec::new();
-        self.dictionary.clone().into_iter().for_each(|(k, v)| {
-            let key = StackElement::Word(k);
-            let value = StackElement::Fun(v);
+        self.dictionary.clone().iter().for_each(|(k, v)| {
+            let key = StackElement::Word(k.to_owned());
+            let value = StackElement::Fun(v.to_owned());
             if !map.iter().map(|(i, _)| i).any(|se| key == *se) {
                 map.push((key, value));
             }
@@ -657,7 +657,7 @@ impl Interpreter {
             Self::pop_or_err(&mut self.datastack, "not enough operands")?
         {
             let dict = map_to_dict(&dict)?;
-            return Ok(Self::new(self.datastack, self.callstack, dict));
+            return Ok(Self::new(self.datastack, self.callstack, Rc::new(dict)));
         }
 
         Err(Self::error("need map for set-dict"))
@@ -755,9 +755,13 @@ impl Interpreter {
                 let f = move |interpreter: Interpreter| {
                     let qt = qt.to_owned();
                     Ok(Self::new(
-                        runcc(Self::new(interpreter.datastack, qt, dict.to_owned()))?,
+                        runcc(Self::new(
+                            interpreter.datastack,
+                            qt,
+                            Rc::new(dict.to_owned()),
+                        ))?,
                         Vec::new(),
-                        BTreeMap::new(),
+                        Rc::new(BTreeMap::new()),
                     ))
                 };
 

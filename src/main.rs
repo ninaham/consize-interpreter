@@ -1,6 +1,7 @@
 use std::{
     env,
     io::{stdout, Error, Write},
+    rc::Rc,
 };
 
 use colored::Colorize;
@@ -19,7 +20,7 @@ fn main() {
             args.skip(1).collect::<Vec<String>>().join(" "),
         )],
         callstack: Vec::new(),
-        dictionary: Interpreter::init_dictionary(),
+        dictionary: Rc::new(Interpreter::init_dictionary()),
     };
 
     match call(int) {
