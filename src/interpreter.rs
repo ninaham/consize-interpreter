@@ -2,13 +2,11 @@ use std::{
     collections::BTreeMap,
     env,
     fs::{self, OpenOptions},
-    io::{self, stdin, stdout, Error, Write},
+    io::{stdin, stdout, Error, Write},
     ops::Deref,
     rc::Rc,
     time::{SystemTime, UNIX_EPOCH},
 };
-
-use colored::Colorize;
 
 use crate::stack_element::{map_to_dict, BuiltIn, Funct, StackElement};
 
@@ -30,17 +28,6 @@ impl Interpreter {
             callstack,
             dictionary,
         }
-    }
-
-    fn pop_or_err(vec: &mut Vec<StackElement>, str: &str) -> Result<StackElement, Error> {
-        vec.pop().ok_or(Self::error(str))
-    }
-
-    pub fn error(str: &str) -> Error {
-        Error::new(
-            io::ErrorKind::InvalidData,
-            format!("{} {str}", "Error:".red().bold()),
-        )
     }
 
     pub fn insert(dictionary: &mut BTreeMap<String, Rc<Funct>>, str: &str, f: BuiltIn) {
@@ -112,60 +99,59 @@ impl Interpreter {
         dict
     }
 
-    pub fn dup(mut self) -> Result<Self, Error> {
-        let a = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
+    pub fn dup(mut self) -> Self {
+        let a = self.datastack.pop().unwrap();
         self.datastack.push(a.clone());
         self.datastack.push(a);
-        Ok(self)
+
+        self
     }
 
-    pub fn swap(mut self) -> Result<Self, Error> {
-        let a = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
-        let b = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
+    pub fn swap(mut self) -> Self {
+        let a = self.datastack.pop().unwrap();
+        let b = self.datastack.pop().unwrap();
         self.datastack.push(a);
         self.datastack.push(b);
 
-        Ok(self)
+        self
     }
 
-    pub fn drop(mut self) -> Result<Self, Error> {
-        Self::pop_or_err(&mut self.datastack, "not enough operands")?;
+    pub fn drop(mut self) -> Self {
+        self.datastack.pop().unwrap();
 
-        Ok(self)
+        self
     }
 
-    pub fn rot(mut self) -> Result<Self, Error> {
-        let a = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
-        let b = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
-        let c = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
+    pub fn rot(mut self) -> Self {
+        let a = self.datastack.pop().unwrap();
+        let b = self.datastack.pop().unwrap();
+        let c = self.datastack.pop().unwrap();
 
         self.datastack.push(b);
         self.datastack.push(a);
         self.datastack.push(c);
 
-        Ok(self)
+        self
     }
 
-    pub fn emptystack(mut self) -> Result<Self, Error> {
+    pub fn emptystack(mut self) -> Self {
         self.datastack.push(StackElement::SubStack(Vec::new()));
-        Ok(self)
+        self
     }
 
-    pub fn push(mut self) -> Result<Self, Error> {
-        let e = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
+    pub fn push(mut self) -> Self {
+        let e = self.datastack.pop().unwrap();
 
-        if let StackElement::SubStack(mut ss) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
+        if let StackElement::SubStack(mut ss) = self.datastack.pop().unwrap() {
             ss.push(e);
             self.datastack.push(StackElement::SubStack(ss));
-            return Ok(self);
+            return self;
         }
-        Err(Self::error("I can only push to stacks"))
+        panic!("I can only push to stacks")
     }
 
-    pub fn r#type(mut self) -> Result<Self, Error> {
-        match Self::pop_or_err(&mut self.datastack, "not enough operands")? {
+    pub fn r#type(mut self) -> Self {
+        match self.datastack.pop().unwrap() {
             StackElement::SubStack(_) => self.datastack.push(StackElement::Word("stk".to_string())),
             StackElement::Word(_) => self.datastack.push(StackElement::Word("wrd".to_string())),
             StackElement::Map(_) => self.datastack.push(StackElement::Word("map".to_string())),
@@ -173,12 +159,12 @@ impl Interpreter {
             StackElement::Fun(_) => self.datastack.push(StackElement::Word("fct".to_string())),
         };
 
-        Ok(self)
+        self
     }
 
-    pub fn equal(mut self) -> Result<Self, Error> {
-        let a = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
-        let b = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
+    pub fn equal(mut self) -> Self {
+        let a = self.datastack.pop().unwrap();
+        let b = self.datastack.pop().unwrap();
 
         if a == b {
             self.datastack.push(StackElement::Word("t".to_string()));
@@ -186,73 +172,65 @@ impl Interpreter {
             self.datastack.push(StackElement::Word("f".to_string()));
         }
 
-        Ok(self)
+        self
     }
 
-    pub fn identical(self) -> Result<Self, Error> {
+    pub fn identical(self) -> Self {
         unimplemented!()
     }
 
-    pub fn pop(mut self) -> Result<Self, Error> {
-        let substack = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
+    pub fn pop(mut self) -> Self {
+        let substack = self.datastack.pop().unwrap();
 
         match substack {
             StackElement::SubStack(mut ss) => {
                 ss.pop().unwrap_or(StackElement::Nil);
                 self.datastack.push(StackElement::SubStack(ss));
-                Ok(self)
+                self
             }
-            _ => Err(Self::error("I can only pop from stacks")),
+            _ => panic!("I can only pop from stacks"),
         }
     }
 
-    pub fn top(mut self) -> Result<Self, Error> {
-        let substack = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
+    pub fn top(mut self) -> Self {
+        let substack = self.datastack.pop().unwrap();
         match substack {
             StackElement::SubStack(mut ss) => {
                 let el = ss.pop().unwrap_or(StackElement::Nil);
                 self.datastack.push(el);
-                Ok(self)
+                self
             }
-            _ => Err(Self::error("I can only pop from stacks")),
+            _ => panic!("I can only pop from stacks"),
         }
     }
 
-    pub fn concat(mut self) -> Result<Self, Error> {
-        if let StackElement::SubStack(mut ss1) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
-            if let StackElement::SubStack(mut ss2) =
-                Self::pop_or_err(&mut self.datastack, "not enough operands")?
-            {
+    pub fn concat(mut self) -> Self {
+        if let StackElement::SubStack(mut ss1) = self.datastack.pop().unwrap() {
+            if let StackElement::SubStack(mut ss2) = self.datastack.pop().unwrap() {
                 ss1.append(&mut ss2);
                 self.datastack.push(StackElement::SubStack(ss1))
             } else {
-                return Err(Self::error("I can only concat stacks"));
+                panic!("I can only concat stacks");
             }
         } else {
-            return Err(Self::error("I can only concat stacks"));
+            panic!("I can only concat stacks");
         }
 
-        Ok(self)
+        self
     }
 
-    pub fn reverse(mut self) -> Result<Self, Error> {
-        if let StackElement::SubStack(ss) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
+    pub fn reverse(mut self) -> Self {
+        if let StackElement::SubStack(ss) = self.datastack.pop().unwrap() {
             let ss_rev = ss.into_iter().rev().collect();
             self.datastack.push(StackElement::SubStack(ss_rev))
         } else {
-            return Err(Self::error("I can only reverse stacks"));
+            panic!("I can only reverse stacks");
         }
-        Ok(self)
+        self
     }
 
-    pub fn mapping(mut self) -> Result<Self, Error> {
-        if let StackElement::SubStack(ss) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
+    pub fn mapping(mut self) -> Self {
+        if let StackElement::SubStack(ss) = self.datastack.pop().unwrap() {
             let keys = ss
                 .iter()
                 .enumerate()
@@ -268,7 +246,7 @@ impl Interpreter {
                 .collect::<Vec<&StackElement>>();
 
             if values.len() != keys.len() {
-                return Err(Self::error("not enough values for every key"));
+                panic!("not enough values for every key");
             }
 
             let mut map = Vec::new();
@@ -278,16 +256,14 @@ impl Interpreter {
             }
 
             self.datastack.push(StackElement::Map(map));
-            return Ok(self);
+            return self;
         }
 
-        Err(Self::error("need map to create mapping"))
+        panic!("need map to create mapping")
     }
 
-    pub fn unmap(mut self) -> Result<Self, Error> {
-        if let StackElement::Map(map) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
+    pub fn unmap(mut self) -> Self {
+        if let StackElement::Map(map) = self.datastack.pop().unwrap() {
             let keys: Vec<StackElement> = map.iter().map(|(i, _)| i).cloned().collect();
             let values: Vec<StackElement> = map.into_iter().map(|(_, i)| i).collect();
             let mut st = Vec::new();
@@ -298,32 +274,28 @@ impl Interpreter {
 
             self.datastack.push(StackElement::SubStack(st));
 
-            return Ok(self);
+            return self;
         }
-        Err(Self::error("need map to unmap"))
+        panic!("need map to unmap")
     }
 
-    pub fn keys(mut self) -> Result<Self, Error> {
-        if let StackElement::Map(map) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
+    pub fn keys(mut self) -> Self {
+        if let StackElement::Map(map) = self.datastack.pop().unwrap() {
             let keys = map
                 .into_iter()
                 .map(|(i, _)| i)
                 .collect::<Vec<StackElement>>();
             self.datastack.push(StackElement::SubStack(keys));
 
-            return Ok(self);
+            return self;
         }
-        Err(Self::error("need map to list keys"))
+        panic!("need map to list keys")
     }
 
-    pub fn assoc(mut self) -> Result<Self, Error> {
-        if let StackElement::Map(mut map) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
-            let key = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
-            let value = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
+    pub fn assoc(mut self) -> Self {
+        if let StackElement::Map(mut map) = self.datastack.pop().unwrap() {
+            let key = self.datastack.pop().unwrap();
+            let value = self.datastack.pop().unwrap();
 
             if !map.iter().any(|(i, _)| *i == key) {
                 map.push((key, value));
@@ -331,32 +303,29 @@ impl Interpreter {
 
             self.datastack.push(StackElement::Map(map));
 
-            return Ok(self);
+            return self;
         }
 
-        Err(Self::error("need map to assoc value to map"))
+        panic!("need map to assoc value to map")
     }
 
-    pub fn dissoc(mut self) -> Result<Self, Error> {
-        if let StackElement::Map(mut map) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
-            let key = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
+    pub fn dissoc(mut self) -> Self {
+        if let StackElement::Map(mut map) = self.datastack.pop().unwrap() {
+            let key = self.datastack.pop().unwrap();
             map.retain(|(i, _)| *i != key);
 
             self.datastack.push(StackElement::Map(map));
 
-            return Ok(self);
+            return self;
         }
 
-        Err(Self::error("need map to dissoc value from map"))
+        panic!("need map to dissoc value from map")
     }
 
-    pub fn get(mut self) -> Result<Self, Error> {
-        let default = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
-        if let StackElement::Map(m) = Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
-            let key = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
+    pub fn get(mut self) -> Self {
+        let default = self.datastack.pop().unwrap();
+        if let StackElement::Map(m) = self.datastack.pop().unwrap() {
+            let key = self.datastack.pop().unwrap();
 
             self.datastack
                 .push(match m.iter().find(|(i, _)| *i == key) {
@@ -370,19 +339,15 @@ impl Interpreter {
                     None => default,
                 });
 
-            return Ok(self);
+            return self;
         }
 
-        Err(Self::error("need map to get value from map"))
+        panic!("need map to get value from map")
     }
 
-    pub fn merge(mut self) -> Result<Self, Error> {
-        if let StackElement::Map(mut m1) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
-            if let StackElement::Map(m2) =
-                Self::pop_or_err(&mut self.datastack, "not enough operands")?
-            {
+    pub fn merge(mut self) -> Self {
+        if let StackElement::Map(mut m1) = self.datastack.pop().unwrap() {
+            if let StackElement::Map(m2) = self.datastack.pop().unwrap() {
                 m2.into_iter().for_each(|(k, v)| {
                     if !m1.iter().any(|(i, _)| *i == k) {
                         m1.push((k, v));
@@ -391,41 +356,37 @@ impl Interpreter {
 
                 self.datastack.push(StackElement::Map(m1));
 
-                return Ok(self);
+                return self;
             }
         }
 
-        Err(Self::error("need maps to merge maps"))
+        panic!("need maps to merge maps")
     }
 
-    pub fn word(mut self) -> Result<Self, Error> {
-        if let StackElement::SubStack(st) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
+    pub fn word(mut self) -> Self {
+        if let StackElement::SubStack(st) = self.datastack.pop().unwrap() {
             if let Ok(s) = st
                 .iter()
                 .map(|e| {
                     if let StackElement::Word(str) = e {
                         Ok(str.as_str())
                     } else {
-                        Err(Self::error("stack may only contain words"))
+                        panic!("stack may only contain words")
                     }
                 })
                 .rev()
                 .collect::<Result<String, Error>>()
             {
                 self.datastack.push(StackElement::Word(s));
-                return Ok(self);
+                return self;
             }
         }
 
-        Err(Self::error("need stack to use 'word'"))
+        panic!("need stack to use 'word'")
     }
 
-    pub fn unword(mut self) -> Result<Self, Error> {
-        if let StackElement::Word(str) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
+    pub fn unword(mut self) -> Self {
+        if let StackElement::Word(str) = self.datastack.pop().unwrap() {
             self.datastack.push(StackElement::SubStack(
                 str.chars()
                     .map(|c| StackElement::Word(c.to_string()))
@@ -433,15 +394,14 @@ impl Interpreter {
                     .collect(),
             ));
 
-            return Ok(self);
+            return self;
         }
 
-        Err(Self::error("need word to use 'unword'"))
+        panic!("need word to use 'unword'")
     }
 
-    pub fn char(mut self) -> Result<Self, Error> {
-        if let StackElement::Word(w) = Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
+    pub fn char(mut self) -> Self {
+        if let StackElement::Word(w) = self.datastack.pop().unwrap() {
             self.datastack.push(StackElement::Word(match w.as_str() {
                 "\\space" => " ".to_string(),
                 "\\newline" => "\n".to_string(),
@@ -452,80 +412,64 @@ impl Interpreter {
                 s => {
                     if s.starts_with("\\u") {
                         let ss: String = s.chars().skip(2).collect();
-                        char::from_u32(
-                            u32::from_str_radix(&ss, 16)
-                                .map_err(|_| Self::error("invalid utf string"))?,
-                        )
-                        .ok_or(Self::error("invalid utf string"))?
-                        .to_string()
+                        char::from_u32(u32::from_str_radix(&ss, 16).unwrap())
+                            .unwrap()
+                            .to_string()
                     } else {
-                        return Err(Self::error("invalid utf string"));
+                        panic!("invalid utf string");
                     }
                 }
             }));
 
-            return Ok(self);
+            return self;
         }
-        Err(Self::error("need word to parse to utf"))
+        panic!("need word to parse to utf")
     }
 
-    pub fn print(mut self) -> Result<Self, Error> {
-        print!(
-            "{}",
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        );
+    pub fn print(mut self) -> Self {
+        print!("{}", self.datastack.pop().unwrap());
 
-        Ok(self)
+        self
     }
 
-    pub fn flush(self) -> Result<Self, Error> {
+    pub fn flush(self) -> Self {
         stdout().flush().unwrap();
 
-        Ok(self)
+        self
     }
 
-    pub fn read_line(mut self) -> Result<Self, Error> {
+    pub fn read_line(mut self) -> Self {
         let mut inp = "".to_string();
         stdin().read_line(&mut inp).unwrap();
 
         self.datastack.push(StackElement::Word(inp));
-        Ok(self)
+        self
     }
 
-    pub fn slurp(mut self) -> Result<Self, Error> {
-        if let StackElement::Word(src) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
+    pub fn slurp(mut self) -> Self {
+        if let StackElement::Word(src) = self.datastack.pop().unwrap() {
             self.datastack
-                .push(StackElement::Word(fs::read_to_string(src)?));
-            return Ok(self);
+                .push(StackElement::Word(fs::read_to_string(src).unwrap()));
+            return self;
         }
 
-        Err(Self::error("need word to read from file"))
+        panic!("need word to read from file")
     }
 
-    pub fn spit(mut self) -> Result<Self, Error> {
-        if let StackElement::Word(data) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
-            if let StackElement::Word(file) =
-                Self::pop_or_err(&mut self.datastack, "not enough operands")?
-            {
-                fs::write(file, data)?;
-                return Ok(self);
+    pub fn spit(mut self) -> Self {
+        if let StackElement::Word(data) = self.datastack.pop().unwrap() {
+            if let StackElement::Word(file) = self.datastack.pop().unwrap() {
+                fs::write(file, data).unwrap();
+                return self;
             }
         }
 
-        Err(Self::error("could not write file"))
+        panic!("could not write file")
     }
 
-    pub fn spit_on(mut self) -> Result<Self, Error> {
-        if let StackElement::Word(data) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
-            if let StackElement::Word(path) =
-                Self::pop_or_err(&mut self.datastack, "not enough operands")?
-            {
+    pub fn spit_on(mut self) -> Self {
+        if let StackElement::Word(data) = self.datastack.pop().unwrap() {
+            if let StackElement::Word(path) = self.datastack.pop().unwrap() {
                 let mut file = OpenOptions::new()
                     .write(true)
                     .append(true)
@@ -533,17 +477,15 @@ impl Interpreter {
                     .unwrap();
 
                 file.write_all(data.as_bytes()).unwrap();
-                return Ok(self);
+                return self;
             }
         }
 
-        Err(Self::error("could not write file"))
+        panic!("could not write file")
     }
 
-    pub fn uncomment(mut self) -> Result<Self, Error> {
-        if let StackElement::Word(wrd) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
+    pub fn uncomment(mut self) -> Self {
+        if let StackElement::Word(wrd) = self.datastack.pop().unwrap() {
             self.datastack.push(StackElement::Word(
                 wrd.lines()
                     .map(|l| l.split('%').next().unwrap())
@@ -552,15 +494,14 @@ impl Interpreter {
                     .join(" "),
             ));
 
-            return Ok(self);
+            return self;
         }
 
-        Err(Self::error("I can only uncomment words"))
+        panic!("I can only uncomment words")
     }
 
-    pub fn tokenize(mut self) -> Result<Self, Error> {
-        if let StackElement::Word(w) = Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
+    pub fn tokenize(mut self) -> Self {
+        if let StackElement::Word(w) = self.datastack.pop().unwrap() {
             self.datastack.push(StackElement::SubStack(
                 w.split_whitespace()
                     .map(|s| StackElement::Word(s.to_string()))
@@ -568,17 +509,17 @@ impl Interpreter {
                     .collect(),
             ));
 
-            return Ok(self);
+            return self;
         }
 
-        Err(Self::error("need word to tokenize"))
+        panic!("need word to tokenize")
     }
 
-    pub fn undocument(self) -> Result<Self, Error> {
+    pub fn undocument(self) -> Self {
         unimplemented!()
     }
 
-    pub fn ctm(mut self) -> Result<Self, Error> {
+    pub fn ctm(mut self) -> Self {
         self.datastack.push(StackElement::Word(
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -587,28 +528,28 @@ impl Interpreter {
                 .to_string(),
         ));
 
-        Ok(self)
+        self
     }
 
-    pub fn os(mut self) -> Result<Self, Error> {
+    pub fn os(mut self) -> Self {
         self.datastack
             .push(StackElement::Word(env::consts::OS.to_string()));
 
-        Ok(self)
+        self
     }
 
-    pub fn call(mut self) -> Result<Self, Error> {
-        match Self::pop_or_err(&mut self.datastack, "not enough operands")? {
+    pub fn call(mut self) -> Self {
+        match self.datastack.pop().unwrap() {
             StackElement::SubStack(mut st) => self.callstack.append(&mut st),
             StackElement::Word(w) => self.callstack.push(StackElement::Word(w)),
             _ => unimplemented!(),
         }
 
-        Ok(self)
+        self
     }
 
-    pub fn call_cc(mut self) -> Result<Self, Error> {
-        let top = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
+    pub fn call_cc(mut self) -> Self {
+        let top = self.datastack.pop().unwrap();
         let mut new_callstack = Vec::new();
         match top {
             StackElement::SubStack(mut ss) => new_callstack.append(&mut ss),
@@ -620,24 +561,20 @@ impl Interpreter {
             StackElement::SubStack(self.callstack),
         ];
 
-        Ok(Self::new(self.datastack, new_callstack, self.dictionary))
+        Self::new(self.datastack, new_callstack, self.dictionary)
     }
 
-    pub fn r#continue(mut self) -> Result<Self, Error> {
-        if let StackElement::SubStack(new_callstack) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
-            if let StackElement::SubStack(new_datastack) =
-                Self::pop_or_err(&mut self.datastack, "not enough operands")?
-            {
-                return Ok(Self::new(new_datastack, new_callstack, self.dictionary));
+    pub fn r#continue(mut self) -> Self {
+        if let StackElement::SubStack(new_callstack) = self.datastack.pop().unwrap() {
+            if let StackElement::SubStack(new_datastack) = self.datastack.pop().unwrap() {
+                return Self::new(new_datastack, new_callstack, self.dictionary);
             }
         }
 
-        Err(Self::error("need quotation for continue"))
+        panic!("need quotation for continue")
     }
 
-    pub fn get_dict(mut self) -> Result<Self, Error> {
+    pub fn get_dict(mut self) -> Self {
         let mut map = Vec::new();
         self.dictionary.clone().iter().for_each(|(k, v)| {
             let key = StackElement::Word(k.to_owned());
@@ -649,22 +586,20 @@ impl Interpreter {
 
         self.datastack.push(StackElement::Map(map));
 
-        Ok(self)
+        self
     }
 
-    pub fn set_dict(mut self) -> Result<Self, Error> {
-        if let StackElement::Map(dict) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
-            let dict = map_to_dict(&dict)?;
-            return Ok(Self::new(self.datastack, self.callstack, Rc::new(dict)));
+    pub fn set_dict(mut self) -> Self {
+        if let StackElement::Map(dict) = self.datastack.pop().unwrap() {
+            let dict = map_to_dict(&dict).unwrap();
+            return Self::new(self.datastack, self.callstack, Rc::new(dict));
         }
 
-        Err(Self::error("need map for set-dict"))
+        panic!("need map for set-dict")
     }
 
-    pub fn stepcc(mut self) -> Result<Self, Error> {
-        let e = Self::pop_or_err(&mut self.callstack, "not enough operands")?;
+    pub fn stepcc(mut self) -> Self {
+        let e = self.callstack.pop().unwrap();
 
         match e {
             StackElement::SubStack(ss) => self.datastack.push(StackElement::SubStack(ss)),
@@ -705,16 +640,12 @@ impl Interpreter {
             },
         };
 
-        Ok(self)
+        self
     }
 
-    pub fn apply(mut self) -> Result<Self, Error> {
-        if let StackElement::Fun(fun) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
-            if let StackElement::SubStack(stack) =
-                Self::pop_or_err(&mut self.datastack, "not enough operands")?
-            {
+    pub fn apply(mut self) -> Self {
+        if let StackElement::Fun(fun) = self.datastack.pop().unwrap() {
+            if let StackElement::SubStack(stack) = self.datastack.pop().unwrap() {
                 self.datastack
                     .push(StackElement::SubStack(match fun.deref() {
                         Funct::BuiltIn(bi) => {
@@ -722,7 +653,7 @@ impl Interpreter {
                                 stack,
                                 self.callstack.clone(),
                                 self.dictionary.clone(),
-                            ))?
+                            ))
                             .datastack
                         }
                         Funct::SelfDefined(_) => unimplemented!(),
@@ -730,39 +661,37 @@ impl Interpreter {
             }
         }
 
-        Ok(self)
+        self
     }
 
-    pub fn compose(self) -> Result<Self, Error> {
+    pub fn compose(self) -> Self {
         unimplemented!()
     }
 
-    pub fn func(mut self) -> Result<Self, Error> {
-        if let StackElement::Map(dict) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
-            let dict = map_to_dict(&dict)?;
+    pub fn func(mut self) -> Self {
+        if let StackElement::Map(dict) = self.datastack.pop().unwrap() {
+            let dict = map_to_dict(&dict).unwrap();
             if let StackElement::SubStack(qt) = self.datastack.pop().unwrap() {
-                fn runcc(inner: Interpreter) -> Result<Vec<StackElement>, Error> {
+                fn runcc(inner: Interpreter) -> Vec<StackElement> {
                     let mut int = inner;
                     while !int.callstack.is_empty() {
-                        int = int.stepcc()?;
+                        int = int.stepcc();
                     }
 
-                    Ok(int.datastack)
+                    int.datastack
                 }
 
                 let f = move |interpreter: Interpreter| {
                     let qt = qt.to_owned();
-                    Ok(Self::new(
+                    Self::new(
                         runcc(Self::new(
                             interpreter.datastack,
                             qt,
                             Rc::new(dict.to_owned()),
-                        ))?,
+                        )),
                         Vec::new(),
                         Rc::new(BTreeMap::new()),
-                    ))
+                    )
                 };
 
                 self.datastack
@@ -770,11 +699,11 @@ impl Interpreter {
             }
         }
 
-        Ok(self)
+        self
     }
 
-    pub fn integer(mut self) -> Result<Self, Error> {
-        let e = Self::pop_or_err(&mut self.datastack, "not enough operands")?;
+    pub fn integer(mut self) -> Self {
+        let e = self.datastack.pop().unwrap();
         self.datastack.push(match e {
             StackElement::Word(w) => match w.parse::<usize>() {
                 Ok(_) => StackElement::Word("t".to_string()),
@@ -783,62 +712,54 @@ impl Interpreter {
             _ => StackElement::Word("f".to_string()),
         });
 
-        Ok(self)
+        self
     }
 
-    pub fn addition(self) -> Result<Self, Error> {
+    pub fn addition(self) -> Self {
         self.binary("+")
     }
 
-    pub fn subtraction(self) -> Result<Self, Error> {
+    pub fn subtraction(self) -> Self {
         self.binary("-")
     }
 
-    pub fn multiplication(self) -> Result<Self, Error> {
+    pub fn multiplication(self) -> Self {
         self.binary("*")
     }
 
-    pub fn division(self) -> Result<Self, Error> {
+    pub fn division(self) -> Self {
         self.binary("div")
     }
 
-    pub fn modulo(self) -> Result<Self, Error> {
+    pub fn modulo(self) -> Self {
         self.binary("mod")
     }
 
-    pub fn greater_than(self) -> Result<Self, Error> {
+    pub fn greater_than(self) -> Self {
         self.binary(">")
     }
 
-    pub fn less_than(self) -> Result<Self, Error> {
+    pub fn less_than(self) -> Self {
         self.binary("<")
     }
 
-    pub fn equals(self) -> Result<Self, Error> {
+    pub fn equals(self) -> Self {
         self.binary("==")
     }
 
-    pub fn less_equals(self) -> Result<Self, Error> {
+    pub fn less_equals(self) -> Self {
         self.binary("<=")
     }
 
-    pub fn greater_equals(self) -> Result<Self, Error> {
+    pub fn greater_equals(self) -> Self {
         self.binary(">=")
     }
 
-    fn binary(mut self, op: &str) -> Result<Self, Error> {
-        if let StackElement::Word(w1) =
-            Self::pop_or_err(&mut self.datastack, "not enough operands")?
-        {
-            if let StackElement::Word(w2) =
-                Self::pop_or_err(&mut self.datastack, "not enough operands")?
-            {
-                let x: isize = w1
-                    .parse()
-                    .map_err(|_| Self::error(format!("{} is not an integer", w1,).as_str()))?;
-                let y: isize = w2
-                    .parse()
-                    .map_err(|_| Self::error(format!("{} is not an integer", w1,).as_str()))?;
+    fn binary(mut self, op: &str) -> Self {
+        if let StackElement::Word(w1) = self.datastack.pop().unwrap() {
+            if let StackElement::Word(w2) = self.datastack.pop().unwrap() {
+                let x: isize = w1.parse().unwrap();
+                let y: isize = w2.parse().unwrap();
                 self.datastack.push(StackElement::Word(match op {
                     "+" => (x + y).to_string(),
                     "-" => (y - x).to_string(),
@@ -867,63 +788,35 @@ impl Interpreter {
                     },
                     _ => panic!("unknown operator"),
                 }));
-                return Ok(self);
+                return self;
             }
         }
-        Err(Self::error("need integers for binary operations"))
+        panic!("need integers for binary operations")
     }
 
-    pub fn comment(mut self) -> Result<Self, Error> {
-        self.datastack
-            .push(StackElement::Fun(Rc::new(Funct::SelfDefined(
-                StackElement::SubStack(vec![
-                    StackElement::Word("continue".to_string()),
-                    StackElement::Word("pop".to_string()),
-                    StackElement::Word("swap".to_string()),
-                    StackElement::Word("push".to_string()),
-                    StackElement::Word("swap".to_string()),
-                    StackElement::Word("rot".to_string()),
-                    StackElement::Word("top".to_string()),
-                    StackElement::Word("dup".to_string()),
-                ]),
-            ))));
-        self.callstack
-            .push(StackElement::Word("call/cc".to_string()));
+    pub fn comment(mut self) -> Self {
+        let next = self.callstack.pop().unwrap();
+        self.datastack.push(next);
 
-        Ok(self)
+        self
     }
 
-    pub fn load(mut self) -> Result<Self, Error> {
-        self.callstack.append(&mut vec![
-            StackElement::Word("tokenize".to_string()),
-            StackElement::Word("uncomment".to_string()),
-            StackElement::Word("slurp".to_string()),
-        ]);
-
-        Ok(self)
+    pub fn load(self) -> Self {
+        self.slurp().uncomment().tokenize()
     }
 
-    pub fn run(mut self) -> Result<Self, Error> {
-        self.callstack.append(&mut vec![
-            StackElement::Word("call".to_string()),
-            StackElement::Word("load".to_string()),
-        ]);
-
-        Ok(self)
+    pub fn run(self) -> Self {
+        self.load().call()
     }
 
-    pub fn start(mut self) -> Result<Self, Error> {
-        self.callstack.append(&mut vec![
-            StackElement::Word("slurp".to_string()),
-            StackElement::Word("uncomment".to_string()),
-            StackElement::Word("tokenize".to_string()),
-            StackElement::Word("get-dict".to_string()),
-            StackElement::Word("func".to_string()),
-            StackElement::Word("emptystack".to_string()),
-            StackElement::Word("swap".to_string()),
-            StackElement::Word("apply".to_string()),
-        ]);
-
-        Ok(self)
+    pub fn start(self) -> Self {
+        self.apply()
+            .swap()
+            .emptystack()
+            .func()
+            .get_dict()
+            .tokenize()
+            .uncomment()
+            .slurp()
     }
 }

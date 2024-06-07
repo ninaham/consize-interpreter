@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, fmt::Display, io::Error, ops::Deref, rc::Rc};
 
 use crate::interpreter::Interpreter;
 
-pub type BuiltIn = Rc<dyn Fn(Interpreter) -> Result<Interpreter, Error>>;
+pub type BuiltIn = Rc<dyn Fn(Interpreter) -> Interpreter>;
 
 #[derive(Clone)]
 pub enum StackElement {
@@ -46,7 +46,7 @@ impl PartialEq for StackElement {
     fn eq(&self, other: &Self) -> bool {
         match self {
             Self::SubStack(s) => match other {
-                Self::SubStack(sk) => print_stack(s, true, false) == print_stack(sk, true, false),
+                Self::SubStack(sk) => sk == s,
                 _ => false,
             },
             Self::Word(w) => match other {
@@ -54,7 +54,7 @@ impl PartialEq for StackElement {
                 _ => false,
             },
             Self::Map(m) => match other {
-                Self::Map(mk) => print_map(m) == print_map(mk),
+                Self::Map(mk) => m == mk,
                 _ => false,
             },
             Self::Fun(f) => match other {
@@ -93,7 +93,7 @@ pub fn map_to_dict(
                 }
             }
         } else {
-            return Err(Interpreter::error("need word as key for dict entry"));
+            panic!("need word as key for dict entry");
         }
     }
 

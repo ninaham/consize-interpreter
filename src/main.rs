@@ -1,8 +1,4 @@
-use std::{
-    env,
-    io::{stdout, Error, Write},
-    rc::Rc,
-};
+use std::{env, rc::Rc};
 
 use colored::Colorize;
 use interpreter::Interpreter;
@@ -23,22 +19,16 @@ fn main() {
         dictionary: Rc::new(Interpreter::init_dictionary()),
     };
 
-    match call(int) {
-        Ok(new_int) => println!(
-            "{} {}",
-            "Consize returns:".yellow().bold(),
-            print_stack(&new_int.datastack, false, false)
-        ),
-        Err(e) => {
-            stdout().flush().unwrap();
-            eprintln!("{}", e)
-        }
-    }
+    println!(
+        "{} {}",
+        "Consize returns:".yellow().bold(),
+        print_stack(&call(int).datastack, false, false)
+    )
 }
 
-fn call(int: Interpreter) -> Result<Interpreter, Error> {
-    let mut int1 = int.uncomment()?.tokenize()?.get_dict()?.func()?;
+fn call(int: Interpreter) -> Interpreter {
+    let mut int1 = int.uncomment().tokenize().get_dict().func();
 
     int1.datastack.push(StackElement::SubStack(Vec::new()));
-    int1.swap()?.apply()
+    int1.swap().apply()
 }
