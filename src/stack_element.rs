@@ -1,11 +1,17 @@
 #![allow(clippy::match_like_matches_macro)]
-use std::{collections::BTreeMap, fmt::Display, io::Error, ops::Deref, rc::Rc};
+use std::{
+    collections::BTreeMap,
+    fmt::{Debug, Display},
+    io::Error,
+    ops::Deref,
+    rc::Rc,
+};
 
 use crate::interpreter::Interpreter;
 
 pub type BuiltIn = Rc<dyn Fn(Interpreter) -> Interpreter>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum StackElement {
     SubStack(Vec<StackElement>),
     Word(String),
@@ -17,6 +23,15 @@ pub enum StackElement {
 pub enum Funct {
     BuiltIn(BuiltIn),
     SelfDefined(StackElement),
+}
+
+impl Debug for Funct {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BuiltIn(_arg0) => f.debug_tuple("BuiltIn").finish(),
+            Self::SelfDefined(arg0) => f.debug_tuple("SelfDefined").field(arg0).finish(),
+        }
+    }
 }
 
 impl Display for StackElement {
@@ -107,7 +122,7 @@ pub fn print_stack(stack: &Vec<StackElement>, print_brackets: bool, reverse: boo
     }
     for i in stack {
         if reverse {
-            str = i.to_string().escape_default().collect::<String>() + " " + str.as_str();
+            str = i.to_string() + " " + str.as_str();
         } else {
             str.push_str(format!("{} ", *i).as_str());
         }

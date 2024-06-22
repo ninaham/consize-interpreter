@@ -427,7 +427,8 @@ impl Interpreter {
     }
 
     pub fn print(mut self) -> Self {
-        print!("{}", self.datastack.pop().unwrap());
+        //print!("{}", self.datastack.pop().unwrap());
+        self.datastack.pop().unwrap();
 
         self
     }
@@ -646,18 +647,16 @@ impl Interpreter {
     pub fn apply(mut self) -> Self {
         if let StackElement::Fun(fun) = self.datastack.pop().unwrap() {
             if let StackElement::SubStack(stack) = self.datastack.pop().unwrap() {
-                self.datastack
-                    .push(StackElement::SubStack(match fun.deref() {
-                        Funct::BuiltIn(bi) => {
-                            bi(Self::new(
-                                stack,
-                                self.callstack.clone(),
-                                self.dictionary.clone(),
-                            ))
-                            .datastack
-                        }
-                        Funct::SelfDefined(_) => unimplemented!(),
-                    }))
+                let int = match fun.deref() {
+                    Funct::BuiltIn(bi) => bi(Self::new(
+                        stack,
+                        self.callstack.clone(),
+                        self.dictionary.clone(),
+                    )),
+                    Funct::SelfDefined(_) => unimplemented!(),
+                };
+                self.datastack.push(StackElement::SubStack(int.datastack));
+                self.dictionary = int.dictionary;
             }
         }
 
@@ -669,29 +668,20 @@ impl Interpreter {
     }
 
     pub fn func(mut self) -> Self {
-        if let StackElement::Map(dict) = self.datastack.pop().unwrap() {
-            let dict = map_to_dict(&dict).unwrap();
+        if let StackElement::Map(_dict) = self.datastack.pop().unwrap() {
             if let StackElement::SubStack(qt) = self.datastack.pop().unwrap() {
-                fn runcc(inner: Interpreter) -> Vec<StackElement> {
+                fn runcc(inner: Interpreter) -> Interpreter {
                     let mut int = inner;
                     while !int.callstack.is_empty() {
                         int = int.stepcc();
                     }
 
-                    int.datastack
+                    int
                 }
 
                 let f = move |interpreter: Interpreter| {
                     let qt = qt.to_owned();
-                    Self::new(
-                        runcc(Self::new(
-                            interpreter.datastack,
-                            qt,
-                            Rc::new(dict.to_owned()),
-                        )),
-                        Vec::new(),
-                        Rc::new(BTreeMap::new()),
-                    )
+                    runcc(Self::new(interpreter.datastack, qt, interpreter.dictionary))
                 };
 
                 self.datastack
