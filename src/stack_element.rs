@@ -41,7 +41,10 @@ impl Display for StackElement {
             Self::Word(s) => write!(f, "{s}"),
             Self::Map(m) => write!(f, "{}", print_map(m)),
             Self::Nil => write!(f, "nil"),
-            Self::Fun(_) => write!(f, "<fct>"),
+            Self::Fun(fct) => match fct.deref() {
+                Funct::BuiltIn(bi) => write!(f, "{:p}", bi),
+                Funct::SelfDefined(bi) => write!(f, "{}", bi),
+            },
         }
     }
 }
@@ -74,8 +77,8 @@ impl PartialEq for StackElement {
             },
             Self::Fun(f) => match other {
                 Self::Fun(fk) => match f.deref() {
-                    Funct::BuiltIn(_bi) => match fk.deref() {
-                        Funct::BuiltIn(_bik) => unimplemented!(),
+                    Funct::BuiltIn(bi) => match fk.deref() {
+                        Funct::BuiltIn(bik) => std::ptr::eq(bi, bik),
                         Funct::SelfDefined(_) => false,
                     },
                     Funct::SelfDefined(sd) => match fk.deref() {

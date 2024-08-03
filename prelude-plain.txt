@@ -439,3 +439,5 @@ SYMBOL: :else
   ( ) [ push <space> push ] reduce
   pop reverse word println
   repl ;
+
+: countdown ( num -- ) [ 1 - dup 0 > ] loop ;
