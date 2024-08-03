@@ -9,3 +9,4 @@ edition = "2021"
 colored = "2.1.0"
 rustyline = "=5.0.2"
 cpu-time = "1.0.0"
+clap = { version = "4.3.0", features = ["derive"] }
