@@ -441,3 +441,4 @@ SYMBOL: :else
   repl ;
 
 : countdown ( num -- ) [ 1 - dup 0 > ] loop ;
+: asdf 1 [ dup swap continue ] call/cc ;

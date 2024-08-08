@@ -135,7 +135,7 @@ fn replace_with_fun(
         .map(|(_, se)| match se {
             StackElement::Word(ref w) => match dictionary.get(w) {
                 Some(f) => match f.deref() {
-                    Funct::BuiltIn(bi) => StackElement::Fun(Rc::new(Funct::BuiltIn(bi.clone()))),
+                    Funct::BuiltIn(_) => StackElement::Fun(f.clone()),
                     Funct::SelfDefined(_) => se.to_owned(),
                 },
                 None => se.to_owned(),
@@ -170,28 +170,24 @@ fn map_to_functions(words: &[StackElement]) -> Vec<StackElement> {
             }
             StackElement::Fun(f) => match f.deref() {
                 Funct::BuiltIn(_) => se.to_owned(),
-                Funct::SelfDefined(_) => todo!(),
+                Funct::SelfDefined(_) => unimplemented!(),
             },
-            StackElement::SubStack(ss) => StackElement::Fun(Rc::new(Funct::BuiltIn(pull_to_ds(
-                StackElement::SubStack(map_to_functions(ss.as_slice())),
-            )))),
-            StackElement::Map(m) => {
-                StackElement::Fun(Rc::new(Funct::BuiltIn(pull_to_ds(StackElement::Map(
-                    m.iter()
-                        .map(|(k, v)| {
-                            (
-                                k.clone(),
-                                match v {
-                                    StackElement::SubStack(ss) => {
-                                        StackElement::SubStack(map_to_functions(ss.as_slice()))
-                                    }
-                                    _ => unimplemented!(),
-                                },
-                            )
-                        })
-                        .collect(),
-                )))))
-            }
+            StackElement::SubStack(ss) => StackElement::SubStack(map_to_functions(ss.as_slice())),
+            StackElement::Map(m) => StackElement::Map(
+                m.iter()
+                    .map(|(k, v)| {
+                        (
+                            k.clone(),
+                            match v {
+                                StackElement::SubStack(ss) => {
+                                    StackElement::SubStack(map_to_functions(ss.as_slice()))
+                                }
+                                _ => unimplemented!(),
+                            },
+                        )
+                    })
+                    .collect(),
+            ),
             StackElement::Nil => {
                 StackElement::Fun(Rc::new(Funct::BuiltIn(pull_to_ds(StackElement::Nil))))
             }
@@ -200,8 +196,8 @@ fn map_to_functions(words: &[StackElement]) -> Vec<StackElement> {
 }
 
 fn wrap_word(word: String) -> BuiltIn {
-    Rc::new(
-        move |mut int: Interpreter| match int.dictionary.clone().get(&word) {
+    Rc::new(move |mut int: Interpreter| {
+        match int.dictionary.clone().get(&word) {
             Some(fun) => match fun.deref() {
                 Funct::BuiltIn(fct) => fct(int),
                 Funct::SelfDefined(stack) => {
@@ -221,13 +217,12 @@ fn wrap_word(word: String) -> BuiltIn {
                     )))));
                 int
             }
-        },
-    )
+        }
+    })
 }
 
 fn pull_to_ds(se: StackElement) -> BuiltIn {
     Rc::new(move |mut int: Interpreter| {
-        //println!("{}", se);
         int.datastack.push(se.clone());
         int
     })
@@ -237,13 +232,36 @@ fn compose_functions(words: &[StackElement]) -> BuiltIn {
     if words.is_empty() {
         return Rc::new(move |int: Interpreter| int);
     }
+    //println!("{:?}", words);
     words
         .iter()
         .map(|se| match se {
             StackElement::Fun(f) => match f.deref() {
                 Funct::BuiltIn(bi) => bi.clone(),
-                Funct::SelfDefined(_) => panic!("auch SelfDefined sollte es hier nicht mehr geben"),
+                Funct::SelfDefined(_) => {
+                    panic!("auch SelfDefined sollte es hier nicht mehr geben")
+                }
             },
+            StackElement::SubStack(ss) => {
+                pull_to_ds(StackElement::SubStack(vec![StackElement::Fun(Rc::new(
+                    Funct::BuiltIn(compose_functions(ss)),
+                ))]))
+            }
+            StackElement::Map(m) => pull_to_ds(StackElement::Map(
+                m.iter()
+                    .map(|(k, v)| {
+                        (
+                            k.clone(),
+                            match v {
+                                StackElement::SubStack(ss) => StackElement::Fun(Rc::new(
+                                    Funct::BuiltIn(compose_functions(ss.as_slice())),
+                                )),
+                                _ => unimplemented!(),
+                            },
+                        )
+                    })
+                    .collect(),
+            )),
             _ => panic!("gibts hier nicht"),
         })
         .reduce(|a, b| compose_two(a, b))
@@ -267,7 +285,7 @@ pub fn call_fn_step_2(
     words: &[StackElement],
     dictionary: &Rc<BTreeMap<String, Rc<Funct>>>,
 ) -> Vec<StackElement> {
-    replace_with_fun(preprocess(word, words, dictionary).as_slice(), dictionary)
+    replace_with_fun(&call_fn_step_1(word, words, dictionary), dictionary)
 }
 
 pub fn call_fn_step_3(
@@ -275,9 +293,7 @@ pub fn call_fn_step_3(
     words: &[StackElement],
     dictionary: &Rc<BTreeMap<String, Rc<Funct>>>,
 ) -> Vec<StackElement> {
-    map_to_functions(
-        replace_with_fun(preprocess(word, words, dictionary).as_slice(), dictionary).as_slice(),
-    )
+    map_to_functions(&call_fn_step_2(word, words, dictionary))
 }
 
 pub fn call_fn_step_4(
@@ -285,10 +301,5 @@ pub fn call_fn_step_4(
     words: &[StackElement],
     dictionary: &Rc<BTreeMap<String, Rc<Funct>>>,
 ) -> BuiltIn {
-    compose_functions(
-        map_to_functions(
-            replace_with_fun(preprocess(word, words, dictionary).as_slice(), dictionary).as_slice(),
-        )
-        .as_slice(),
-    )
+    compose_functions(&call_fn_step_3(word.clone(), words, dictionary))
 }

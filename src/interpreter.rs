@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::{
-    preprocessor::{call_fn_step_3, call_fn_step_4},
+    preprocessor::call_fn_step_4,
     stack_element::{map_to_dict, BuiltIn, Funct, StackElement},
 };
 
@@ -192,7 +192,7 @@ impl Interpreter {
                 self.datastack.push(StackElement::SubStack(ss));
                 self
             }
-            _ => panic!("I can only pop from stacks"),
+            _ => panic!("I can only pop from stacks, received {:?}", substack),
         }
     }
 
@@ -491,6 +491,7 @@ impl Interpreter {
     }
 
     pub fn uncomment(mut self) -> Self {
+        let debug = self.datastack[self.datastack.len() - 1].clone();
         if let StackElement::Word(wrd) = self.datastack.pop().unwrap() {
             self.datastack.push(StackElement::Word(
                 wrd.lines()
@@ -503,7 +504,7 @@ impl Interpreter {
             return self;
         }
 
-        panic!("I can only uncomment words")
+        panic!("I can only uncomment words, found {:?}", debug)
     }
 
     pub fn tokenize(mut self) -> Self {
@@ -514,7 +515,6 @@ impl Interpreter {
                     .rev()
                     .collect(),
             ));
-
             return self;
         }
 
@@ -545,7 +545,6 @@ impl Interpreter {
     }
 
     pub fn call(mut self) -> Self {
-        //println!("{:?}", self.datastack);
         match self.datastack.pop().unwrap() {
             StackElement::SubStack(mut st) => self.callstack.append(&mut st),
             StackElement::Word(w) => self.callstack.push(StackElement::Word(w)),
@@ -572,7 +571,32 @@ impl Interpreter {
             StackElement::SubStack(self.callstack),
         ];
 
+        //println!("{:?}", self.datastack);
+
         Self::new(self.datastack, new_callstack, self.dictionary)
+    }
+
+    pub fn call_cc_after_preprocess_step_4(mut self) -> Self {
+        let top = self.datastack.pop().unwrap();
+
+        self.datastack = vec![
+            StackElement::SubStack(self.datastack),
+            StackElement::SubStack(self.callstack),
+        ];
+
+        //println!("{:?}", self.datastack);
+
+        match top {
+            StackElement::SubStack(ss) => {
+                call_fn_step_4("asdfg".to_string(), &ss, &self.dictionary)(Self::new(
+                    self.datastack,
+                    Vec::new(),
+                    self.dictionary,
+                ))
+            }
+
+            _ => unimplemented!(),
+        }
     }
 
     pub fn r#continue(mut self) -> Self {
@@ -607,17 +631,6 @@ impl Interpreter {
         }
 
         panic!("need map for set-dict")
-    }
-
-    pub fn new_stepcc(mut self) -> Self {
-        let e = self.callstack.pop().unwrap();
-        match e {
-            StackElement::Fun(fct) => match fct.deref() {
-                Funct::BuiltIn(bi) => bi(self),
-                _ => unimplemented!(),
-            },
-            _ => unimplemented!(),
-        }
     }
 
     pub fn stepcc(mut self) -> Self {
@@ -708,6 +721,19 @@ impl Interpreter {
 
                 self.datastack
                     .push(StackElement::Fun(Rc::new(Funct::BuiltIn(Rc::new(f)))));
+            }
+        }
+
+        self
+    }
+
+    pub fn func_after_preprocess_step_4(mut self) -> Self {
+        if let StackElement::Map(_dict) = self.datastack.pop().unwrap() {
+            if let StackElement::SubStack(qt) = self.datastack.pop().unwrap() {
+                let f = call_fn_step_4("asdfgh".to_string(), &qt, &self.dictionary);
+
+                self.datastack
+                    .push(StackElement::Fun(Rc::new(Funct::BuiltIn(f))));
             }
         }
 
@@ -817,30 +843,21 @@ impl Interpreter {
         panic!("das machen wir hier nicht mehr")
     }
 
-    pub fn call_after_preproccess(mut self) -> Self {
-        match self.datastack.pop().unwrap() {
-            StackElement::SubStack(st) => self.callstack.append(&mut call_fn_step_3(
-                "asdfgh".to_string(),
-                &st,
-                &self.dictionary,
-            )),
-            StackElement::Word(w) => self.callstack.push(StackElement::Word(w)),
-            StackElement::Fun(f) => match f.deref() {
-                Funct::BuiltIn(bi) => return bi(self),
-                Funct::SelfDefined(_) => unimplemented!(),
-            },
-            _ => unimplemented!(),
-        }
-
-        self
-    }
-
     pub fn call_after_preproccess_step_4(mut self) -> Self {
         match self.datastack.pop().unwrap() {
             StackElement::SubStack(st) => {
                 call_fn_step_4("asdfgh".to_string(), st.as_slice(), &self.dictionary)(self)
             }
-            _ => unimplemented!(),
+            StackElement::Fun(f) => match f.deref() {
+                Funct::BuiltIn(bi) => bi(self),
+                _ => unimplemented!(),
+            },
+            StackElement::Word(f) => call_fn_step_4(
+                "qwert".to_string(),
+                &[StackElement::Word(f)],
+                &self.dictionary,
+            )(self),
+            x => panic!("{:?}", x),
         }
     }
 
@@ -850,6 +867,10 @@ impl Interpreter {
 
     pub fn run(self) -> Self {
         self.load().call()
+    }
+
+    pub fn run_after_preprocess_step_4(self) -> Self {
+        self.load().call_after_preproccess_step_4()
     }
 
     pub fn start(self) -> Self {
