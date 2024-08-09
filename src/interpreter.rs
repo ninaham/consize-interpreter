@@ -369,7 +369,6 @@ impl Interpreter {
 
     pub fn word(mut self) -> Self {
         if let StackElement::SubStack(st) = self.datastack.pop().unwrap() {
-            //println!("{:?}", st);
             if let Ok(s) = st
                 .iter()
                 .map(|e| {
@@ -571,8 +570,6 @@ impl Interpreter {
             StackElement::SubStack(self.callstack),
         ];
 
-        //println!("{:?}", self.datastack);
-
         Self::new(self.datastack, new_callstack, self.dictionary)
     }
 
@@ -583,8 +580,6 @@ impl Interpreter {
             StackElement::SubStack(self.datastack),
             StackElement::SubStack(self.callstack),
         ];
-
-        //println!("{:?}", self.datastack);
 
         match top {
             StackElement::SubStack(ss) => {
@@ -635,7 +630,6 @@ impl Interpreter {
 
     pub fn stepcc(mut self) -> Self {
         let e = self.callstack.pop().unwrap();
-        //println!("{:?}", e);
 
         match e {
             StackElement::SubStack(ss) => self.datastack.push(StackElement::SubStack(ss)),

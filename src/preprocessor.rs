@@ -70,7 +70,6 @@ pub fn preprocess(
                         || (i + 2 == words.len()
                             && words[i + 1] == StackElement::Word("\\".to_string()))
                     {
-                        //println!("word: {}, words: {:?}", word, words);
                         return vec![StackElement::Fun(Rc::new(Funct::BuiltIn(pull_to_ds(
                             se.clone(),
                         ))))];
@@ -232,7 +231,6 @@ fn compose_functions(words: &[StackElement]) -> BuiltIn {
     if words.is_empty() {
         return Rc::new(move |int: Interpreter| int);
     }
-    //println!("{:?}", words);
     words
         .iter()
         .map(|se| match se {
