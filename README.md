@@ -15,7 +15,7 @@ After that, you can run the Consize Rust implementation by executing the followi
 cargo run -- <consize-code>
 ```
 
-To try the different preprocessing steps, you can use the following flags:
+To try the different preprocessing steps, you can use the following flag:
 
 ```bash
 cargo run -- -l <level> <consize-code>
@@ -27,7 +27,7 @@ To see the available levels, you can use the following command:
 cargo run -- -h
 ```
 
-If you do not want to install the rust toolchain, you can download the binary and use the following command to run the Consize Rust implementation:
+If you do not want to install the rust toolchain, you can download the [binary](https://github.com/ninaham/consize-interpreter/releases/tag/v0.1) and use the following command to run the Consize Rust implementation:
 
 ```bash
 path/to/consize-interpreter <consize-code>
